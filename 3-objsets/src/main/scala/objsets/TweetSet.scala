@@ -9,7 +9,7 @@ import TweetReader._
 class Tweet(val user: String, val text: String, val retweets: Int) {
   override def toString: String =
     "User: " + user + "\n" +
-    "Text: " + text + " [" + retweets + "]"
+      "Text: " + text + " [" + retweets + "]"
 }
 
 /**
@@ -55,7 +55,7 @@ abstract class TweetSet {
    * Question: Should we implment this method here, or should it remain abstract
    * and be implemented in the subclasses?
    */
-   def union(that: TweetSet): TweetSet
+  def union(that: TweetSet): TweetSet
 
   /**
    * Returns the tweet from this set which has the greatest retweet count.
@@ -67,6 +67,7 @@ abstract class TweetSet {
    * and be implemented in the subclasses?
    */
   def mostRetweeted: Tweet
+  def mostRetweetedAcc(t: Tweet): Tweet
 
   /**
    * Returns a list containing all tweets of this set, sorted by retweet count
@@ -116,8 +117,7 @@ class Empty extends TweetSet {
   def union(that: TweetSet) = that
 
   def mostRetweeted: Tweet = throw new NoSuchElementException
-
-  def empty = true
+  def mostRetweetedAcc(acc: Tweet): Tweet = acc
 
   def descendingByRetweet: TweetList = Nil
 
@@ -132,7 +132,41 @@ class Empty extends TweetSet {
 
 class NonEmpty(elem: Tweet, left: TweetSet, right: TweetSet) extends TweetSet {
 
-  def filterAcc(p: Tweet => Boolean, acc: TweetSet): TweetSet = ???
+  def filterAcc(p: Tweet => Boolean, acc: TweetSet): TweetSet = {
+    val leftFiltered = left.filterAcc(p, acc)
+    val rightFiltered = right.filterAcc(p, leftFiltered)
+
+    if (p(elem)) {
+      rightFiltered.incl(elem)
+    } else {
+      rightFiltered
+    }
+  }
+
+  /**
+   * Returns a new `TweetSet` that is the union of `TweetSet`s `this` and `that`
+   */
+  override def union(that: TweetSet): TweetSet = left union right union that incl (elem)
+
+  /**
+   * Returns a list containing all tweets of this set, sorted by retweet count
+   * in descending order. In other words, the head of the resulting list should
+   * have the highest retweet count.
+   */
+  override def descendingByRetweet: TweetList = new Cons(this.mostRetweeted, this.remove(mostRetweeted).descendingByRetweet)
+
+  /**
+   * Returns the tweet from this set which has the greatest retweet count.
+   */
+  override def mostRetweeted: Tweet = mostRetweetedAcc(elem)
+
+  def mostRetweetedAcc(maxSoFar: Tweet): Tweet = {
+    val newMax =
+      if (elem.retweets > maxSoFar.retweets) elem
+      else maxSoFar
+
+    right mostRetweetedAcc ( left mostRetweetedAcc newMax )
+  }
 
   /**
    * The following methods are already implemented
@@ -163,8 +197,11 @@ class NonEmpty(elem: Tweet, left: TweetSet, right: TweetSet) extends TweetSet {
 
 trait TweetList {
   def head: Tweet
+
   def tail: TweetList
+
   def isEmpty: Boolean
+
   def foreach(f: Tweet => Unit): Unit =
     if (!isEmpty) {
       f(head)
@@ -174,7 +211,9 @@ trait TweetList {
 
 object Nil extends TweetList {
   def head = throw new java.util.NoSuchElementException("head of EmptyList")
+
   def tail = throw new java.util.NoSuchElementException("tail of EmptyList")
+
   def isEmpty = true
 }
 
